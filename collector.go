@@ -658,6 +658,7 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 			up, _ = collectDCMI(ch, target)
 		case "bmc":
 			up, _ = collectBmcInfo(ch, target)
+			up, _ = collectBmcConfig(ch, target)
 		case "chassis":
 			up, _ = collectChassisState(ch, target)
 		case "sel":
