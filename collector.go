@@ -416,6 +416,7 @@ func (c collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- temperatureDesc
 	ch <- powerConsumption
 	ch <- bmcInfo
+	ch <- bmcConfig
 	ch <- selEntriesCountDesc
 	ch <- selFreeSpaceDesc
 	ch <- upDesc
