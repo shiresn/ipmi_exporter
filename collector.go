@@ -33,6 +33,7 @@ var (
 	ipmiSELFreeSpaceRegex        = regexp.MustCompile(`^Free space remaining\s*:\s(?P<value>[0-9.]*)\s*bytes.*`)
 	bmcInfoFirmwareRevisionRegex = regexp.MustCompile(`^Firmware Revision\s*:\s*(?P<value>[0-9.]*).*`)
 	bmcInfoManufacturerIDRegex   = regexp.MustCompile(`^Manufacturer ID\s*:\s*(?P<value>.*)`)
+	bmcConfigMacAddressRegex     = regexp.MustCompile(`^.\s*MAC_Address\s*(?P<value>[\w:]*).*`)
 )
 
 type collector struct {
@@ -162,6 +163,13 @@ var (
 		nil,
 	)
 
+	bmcConfig = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "bmc", "config"),
+		"Constant metric with value '1' providing details about the BMC MAC address.",
+		[]string{"macAddress"},
+		nil,
+	)
+
 	selEntriesCountDesc = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "sel", "logs_count"),
 		"Current number of log entries in the SEL.",
@@ -283,6 +291,10 @@ func bmcInfoOutput(target ipmiTarget) ([]byte, error) {
 	return freeipmiOutput("bmc-info", target, "--get-device-id")
 }
 
+func bmcConfigOutput(target ipmiTarget) ([]byte, error) {
+	return freeipmiOutput("bmc-config", target, "-S Lan_Conf --checkout")
+}
+
 func ipmiChassisOutput(target ipmiTarget) ([]byte, error) {
 	return freeipmiOutput("ipmi-chassis", target, "--get-chassis-status")
 }
@@ -374,6 +386,10 @@ func getBMCInfoFirmwareRevision(ipmiOutput []byte) (string, error) {
 
 func getBMCInfoManufacturerID(ipmiOutput []byte) (string, error) {
 	return getValue(ipmiOutput, bmcInfoManufacturerIDRegex)
+}
+
+func getBMCConfigMACAddress(ipmiOutput []byte) (string, error) {
+	return getValue(ipmiOutput, bmcConfigMacAddressRegex)
 }
 
 func getSELInfoEntriesCount(ipmiOutput []byte) (float64, error) {
@@ -550,6 +566,26 @@ func collectBmcInfo(ch chan<- prometheus.Metric, target ipmiTarget) (int, error)
 		prometheus.GaugeValue,
 		1,
 		firmwareRevision, manufacturerID,
+	)
+	return 1, nil
+}
+
+func collectBmcConfig(ch chan<- prometheus.Metric, target ipmiTarget) (int, error) {
+	output, err := bmcConfigOutput(target)
+	if err != nil {
+		log.Debugf("Failed to collect bmc-config data from %s: %s", targetName(target.host), err)
+		return 0, err
+	}
+	macAddress, err := getBMCConfigMACAddress(output)
+	if err != nil {
+		log.Errorf("Failed to parse bmc-config data from %s: %s", targetName(target.host), err)
+		return 0, err
+	}
+	ch <- prometheus.MustNewConstMetric(
+		bmcConfig,
+		prometheus.GaugeValue,
+		1,
+		macAddress,
 	)
 	return 1, nil
 }
